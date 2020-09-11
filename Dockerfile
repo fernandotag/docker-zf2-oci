@@ -1,27 +1,44 @@
-FROM debian:jessie
+FROM php:5.6-apache
 
-RUN apt-get update
-RUN apt-get -y upgrade
+RUN apt-get update && apt-get install -qqy git unzip libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev \
+        libaio1 wget && apt-get clean autoclean && apt-get autoremove --yes &&  rm -rf /var/lib/{apt,dpkg,cache,log}/ 
 
-# Install Apache2 / PHP 5.6 & Co.
-RUN apt-get -y install apache2 php5 libapache2-mod-php5 php5-dev php-pear php5-curl curl libaio1
+#composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Install the Oracle Instant Client
-ADD oracle/oracle-instantclient12.1-basic_12.1.0.2.0-2_amd64.deb /tmp
-ADD oracle/oracle-instantclient12.1-devel_12.1.0.2.0-2_amd64.deb /tmp
-ADD oracle/oracle-instantclient12.1-sqlplus_12.1.0.2.0-2_amd64.deb /tmp
-RUN dpkg -i /tmp/oracle-instantclient12.1-basic_12.1.0.2.0-2_amd64.deb
-RUN dpkg -i /tmp/oracle-instantclient12.1-devel_12.1.0.2.0-2_amd64.deb
-RUN dpkg -i /tmp/oracle-instantclient12.1-sqlplus_12.1.0.2.0-2_amd64.deb
-RUN rm -rf /tmp/oracle-instantclient12.1-*.deb
+# ORACLE oci 
+RUN mkdir /opt/oracle \
+    && cd /opt/oracle     
+    
+ADD oracle/instantclient-basic-linux.x64-12.1.0.2.0.zip /opt/oracle
+ADD oracle/instantclient-sdk-linux.x64-12.1.0.2.0.zip /opt/oracle
 
-# Set up the Oracle environment variables
-ENV LD_LIBRARY_PATH /usr/lib/oracle/12.1/client64/lib/
-ENV ORACLE_HOME /usr/lib/oracle/12.1/client64/lib/
+# Install Oracle Instantclient
+RUN  unzip /opt/oracle/instantclient-basic-linux.x64-12.1.0.2.0.zip -d /opt/oracle \
+    && unzip /opt/oracle/instantclient-sdk-linux.x64-12.1.0.2.0.zip -d /opt/oracle \
+    && ln -s /opt/oracle/instantclient_12_1/libclntsh.so.12.1 /opt/oracle/instantclient_12_1/libclntsh.so \
+    && ln -s /opt/oracle/instantclient_12_1/libclntshcore.so.12.1 /opt/oracle/instantclient_12_1/libclntshcore.so \
+    && ln -s /opt/oracle/instantclient_12_1/libocci.so.12.1 /opt/oracle/instantclient_12_1/libocci.so \
+    && rm -rf /opt/oracle/*.zip
+    
+ENV LD_LIBRARY_PATH  /opt/oracle/instantclient_12_1:${LD_LIBRARY_PATH}
 
-# Install the OCI8 PHP extension
-RUN echo 'instantclient,/usr/lib/oracle/12.1/client64/lib' | pecl install -f oci8-2.0.8
-RUN echo "extension=oci8.so" > /etc/php5/apache2/conf.d/30-oci8.ini
+# Install Oracle extensions
+RUN echo 'instantclient,/opt/oracle/instantclient_12_1/' | pecl install oci8-2.0.12 \ 
+       && docker-php-ext-configure pdo_oci --with-pdo-oci=instantclient,/opt/oracle/instantclient_12_1,12.1 \
+       && docker-php-ext-install \
+       			mysql \
+                mysqli \
+	            pdo_mysql \
+	            pdo_oci \
+      && docker-php-ext-enable \
+                oci8 \ 
+                pdo_oci \
+                pdo_mysql 
+
+RUN echo 'date.timezone = "America/Sao_Paulo"' > /usr/local/etc/php/conf.d/timezone.ini
 
 # Enable Apache2 modules
 RUN a2enmod rewrite
@@ -32,13 +49,13 @@ ENV APACHE_RUN_GROUP www-data
 ENV APACHE_LOG_DIR /var/log/apache2
 ENV APACHE_LOCK_DIR /var/lock/apache2
 ENV APACHE_PID_FILE /var/run/apache2.pid
+ENV APACHE_RUN_DIR /zf2-app
 
 # adding assets
 ADD assets/ /assets/
 
-EXPOSE 80
-
 ENTRYPOINT ["/assets/entrypoint.sh"]
 
-# Run Apache2 in Foreground
-CMD /usr/sbin/apache2 -D FOREGROUND
+EXPOSE 80
+
+
