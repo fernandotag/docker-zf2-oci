@@ -1,8 +1,9 @@
 FROM php:5.6-apache
 
-RUN apt-get update && apt-get install -qqy git unzip libfreetype6-dev \
+RUN apt-get update && apt-get install     -qqy git unzip libfreetype6-dev \
         libjpeg62-turbo-dev \
-        libpng-dev \
+        libpng-dev \ 
+        zlib1g-dev libicu-dev g++ \
         libaio1 wget && apt-get clean autoclean && apt-get autoremove --yes &&  rm -rf /var/lib/{apt,dpkg,cache,log}/ 
 
 #composer
@@ -30,13 +31,14 @@ RUN echo 'instantclient,/opt/oracle/instantclient_12_1/' | pecl install oci8-2.0
        && docker-php-ext-configure pdo_oci --with-pdo-oci=instantclient,/opt/oracle/instantclient_12_1,12.1 \
        && docker-php-ext-install \
        			mysql \
-                mysqli \
-	            pdo_mysql \
-	            pdo_oci \
+            mysqli \
+	          pdo_mysql \
+	          pdo_oci \
+            intl \
       && docker-php-ext-enable \
-                oci8 \ 
-                pdo_oci \
-                pdo_mysql 
+            oci8 \ 
+            pdo_oci \
+            pdo_mysql 
 
 RUN echo 'date.timezone = "America/Sao_Paulo"' > /usr/local/etc/php/conf.d/timezone.ini
 
