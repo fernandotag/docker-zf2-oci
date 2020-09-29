@@ -35,6 +35,7 @@ RUN echo 'instantclient,/opt/oracle/instantclient_12_1/' | pecl install oci8-2.0
 	          pdo_mysql \
 	          pdo_oci \
             intl \
+            gd \
       && docker-php-ext-enable \
             oci8 \ 
             pdo_oci \
